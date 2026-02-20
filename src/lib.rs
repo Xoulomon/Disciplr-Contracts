@@ -1,8 +1,7 @@
 #![no_std]
+#![allow(clippy::too_many_arguments)]
 
-use soroban_sdk::{
-    contract, contractimpl, contracttype, Address, BytesN, Env, Symbol,
-};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, BytesN, Env, Symbol};
 
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -61,10 +60,8 @@ impl DisciplrVault {
             status: VaultStatus::Active,
         };
         let vault_id = 0u32; // placeholder; real impl would allocate id and persist
-        env.events().publish(
-            (Symbol::new(&env, "vault_created"), vault_id),
-            vault,
-        );
+        env.events()
+            .publish((Symbol::new(&env, "vault_created"), vault_id), vault);
         vault_id
     }
 
@@ -72,10 +69,8 @@ impl DisciplrVault {
     pub fn validate_milestone(env: Env, vault_id: u32) -> bool {
         // TODO: check vault exists, status is Active, caller is verifier, timestamp < end
         // TODO: transfer USDC to success_destination, set status Completed
-        env.events().publish(
-            (Symbol::new(&env, "milestone_validated"), vault_id),
-            (),
-        );
+        env.events()
+            .publish((Symbol::new(&env, "milestone_validated"), vault_id), ());
         true
     }
 
