@@ -31,6 +31,8 @@ pub struct DisciplrVault;
 
 #[contractimpl]
 impl DisciplrVault {
+    const NEXT_VAULT_ID_KEY: Symbol = Symbol::short("next_vault_id");
+
     /// Create a new productivity vault. Caller must have approved USDC transfer to this contract.
     pub fn create_vault(
         env: Env,
@@ -44,8 +46,11 @@ impl DisciplrVault {
         failure_destination: Address,
     ) -> u32 {
         creator.require_auth();
-        // TODO: pull USDC from creator to this contract
-        // For now, just store vault metadata (storage key pattern would be used in full impl)
+
+        // Retrieve the next vault ID from storage, default to 0 if not set
+        let next_vault_id: u32 = env.storage().get(&Self::NEXT_VAULT_ID_KEY).unwrap_or(0);
+
+        // Create the vault metadata
         let vault = ProductivityVault {
             creator: creator.clone(),
             amount,
@@ -57,12 +62,20 @@ impl DisciplrVault {
             failure_destination,
             status: VaultStatus::Active,
         };
-        let vault_id = 0u32; // placeholder; real impl would allocate id and persist
+
+        // Persist the vault metadata (using the vault ID as the key)
+        env.storage().set(&next_vault_id, &vault);
+
+        // Increment and persist the next vault ID
+        env.storage().set(&Self::NEXT_VAULT_ID_KEY, &(next_vault_id + 1));
+
+        // Publish an event for the created vault
         env.events().publish(
-            (Symbol::new(&env, "vault_created"), vault_id),
+            (Symbol::new(&env, "vault_created"), next_vault_id),
             vault,
         );
-        vault_id
+
+        next_vault_id
     }
 
     /// Verifier (or authorized party) validates milestone completion.
