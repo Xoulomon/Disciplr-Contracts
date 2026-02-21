@@ -12,6 +12,11 @@ pub enum VaultStatus {
     Cancelled = 3,
 }
 
+// Constants to prevent abuse, spam, and potential overflow issues
+pub const MAX_VAULT_DURATION: u64 = 365 * 24 * 60 * 60; // 1 year in seconds
+pub const MIN_AMOUNT: i128 = 10_000_000; // 1 USDC with 7 decimals
+pub const MAX_AMOUNT: i128 = 10_000_000_000_000; // 10 million USDC with 7 decimals
+
 #[contracttype]
 pub struct ProductivityVault {
     pub creator: Address,
@@ -43,6 +48,27 @@ impl DisciplrVault {
         failure_destination: Address,
     ) -> u32 {
         creator.require_auth();
+
+         // Enforce amount bounds
+        if amount < MIN_AMOUNT {
+            panic!("Amount below minimum allowed");
+        }
+        if amount > MAX_AMOUNT {
+            panic!("Amount exceeds maximum allowed");
+        }
+
+        // Reasonable start time (e.g. not too far in past/future)
+        let current = env.ledger().timestamp();
+        if start_timestamp < current { panic!("Start cannot be in the past"); }
+
+        // Enforce duration bounds
+        if end_timestamp <= start_timestamp {
+            panic!("End timestamp must be after start timestamp");
+        }
+        let duration = end_timestamp - start_timestamp;
+        if duration > MAX_VAULT_DURATION {
+            panic!("Vault duration exceeds maximum allowed");
+        }
         // TODO: pull USDC from creator to this contract
         // For now, just store vault metadata (storage key pattern would be used in full impl)
         let vault = ProductivityVault {
