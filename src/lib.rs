@@ -332,9 +332,9 @@ mod tests {
 
     use super::*;
     use soroban_sdk::{
-        testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation, Events, Ledger},
+        testutils::{Address as _, AuthorizedFunction, Events, Ledger},
         token::{StellarAssetClient, TokenClient},
-        Address, BytesN, Env, IntoVal, Symbol, TryIntoVal,
+        Address, BytesN, Env, Symbol, TryIntoVal,
     };
 
     // -----------------------------------------------------------------------
@@ -996,7 +996,6 @@ mod tests {
     #[should_panic]
     fn test_cancel_vault_non_creator_fails() {
         let setup = TestSetup::new();
-        let client = setup.client();
         setup.env.ledger().set_timestamp(setup.start_timestamp);
         let vault_id = setup.create_default_vault();
 
