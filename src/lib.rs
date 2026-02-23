@@ -1,19 +1,3 @@
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use soroban_sdk::{testutils::Address as TestAddress, Env, Address, BytesN};
-
-    #[test]
-    fn cancel_vault_fails_for_nonexistent_vault() {
-        let env = Env::default();
-        let contract = DisciplrVault {};
-        let creator = Address::from_account_id(&env, &TestAddress::random(&env));
-        let vault_id = 9999; // Non-existent vault_id
-        // Should fail: cancel_vault returns false or panics
-        let result = contract.cancel_vault(env.clone(), vault_id);
-        assert!(!result, "cancel_vault should fail for non-existent vault_id");
-    }
-}
 #![no_std]
 
 use soroban_sdk::{
@@ -57,9 +41,6 @@ pub struct ProductivityVault {
 #[contracttype]
 pub enum DataKey {
     NextVaultId,
-    Vault(u32),
-#[derive(Clone)]
-pub enum DataKey {
     Vault(u32),
     VaultCount,
 }
@@ -229,12 +210,12 @@ impl DisciplrVault {
 
     /// Return current vault state for a given vault id.
     pub fn get_vault_state(env: Env, vault_id: u32) -> Option<ProductivityVault> {
-        env.storage().persistent().get(&DataKey::Vault(vault_id))
+        env.storage().instance().get(&DataKey::Vault(vault_id))
     }
 }
 
 #[cfg(test)]
-mod tests {
+mod tests_get_vault_state {
     use super::*;
     use soroban_sdk::testutils::Address as _;
 
@@ -280,7 +261,6 @@ mod tests {
         assert_eq!(vault.success_destination, success_destination);
         assert_eq!(vault.failure_destination, failure_destination);
         assert_eq!(vault.status, VaultStatus::Active);
-        env.storage().instance().get(&DataKey::Vault(vault_id))
     }
 }
 
@@ -386,6 +366,51 @@ mod test {
         // Simply assert that an error occurred - the exact error type is verified by the implementation
     }
 
+    /// Create vault, validate milestone (if required), call release_funds, assert vault status becomes Completed
+    /// and vault amount/success_destination are as expected. Balance assertion to success_destination would be
+    /// added when release_funds performs the actual token transfer.
+    #[test]
+    fn test_release_funds_sets_status_completed_and_releases_to_success_destination() {
+        let env = Env::default();
+        let contract_id = env.register(DisciplrVault, ());
+        let client = DisciplrVaultClient::new(&env, &contract_id);
+
+        let creator = Address::generate(&env);
+        let success_dest = Address::generate(&env);
+        let failure_dest = Address::generate(&env);
+
+        let start_time = 1000;
+        let end_time = 2000;
+        let amount = 10_000_i128;
+
+        env.ledger().set_timestamp(start_time);
+        env.mock_all_auths();
+
+        // 1. Create vault
+        let vault_id = client.create_vault(
+            &creator,
+            &amount,
+            &start_time,
+            &end_time,
+            &BytesN::from_array(&env, &[0u8; 32]),
+            &None, // no verifier required for this path
+            &success_dest,
+            &failure_dest,
+        );
+
+        // 2. Call release_funds (vault is Active; no validation step required by current impl)
+        let released = client.release_funds(&vault_id);
+        assert!(released);
+
+        // 3. Assert vault status is Completed
+        let vault = client.get_vault_state(&vault_id).unwrap();
+        assert_eq!(vault.status, VaultStatus::Completed);
+        assert_eq!(vault.amount, amount);
+        assert_eq!(vault.success_destination, success_dest);
+
+        // When release_funds implements actual token transfer, assert success_dest balance increased by amount
+    }
+
     #[test]
     fn test_redirect_funds_rejects_non_existent_vault() {
         let env = Env::default();
@@ -401,7 +426,7 @@ mod test {
 }
 
 #[cfg(test)]
-mod tests {
+mod tests_create_vault {
     extern crate std; // no_std crate — explicitly link std for the test harness
 
     use super::*;
