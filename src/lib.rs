@@ -1,4 +1,4 @@
- #![no_std]
+   #![no_std]
 #![allow(clippy::too_many_arguments)]
 
 use soroban_sdk::{
@@ -1326,4 +1326,3 @@ mod tests {
         assert_ne!([1u8; 32], [255u8; 32]);
     }
 }
-
