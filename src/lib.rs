@@ -555,7 +555,6 @@ mod tests {
         setup.env.ledger().set_timestamp(setup.start_timestamp);
         let vault_id = setup.create_default_vault();
 
-
         // Advance ledger to exactly end_timestamp
         setup.env.ledger().set_timestamp(setup.end_timestamp);
 
@@ -578,7 +577,6 @@ mod tests {
 
         setup.env.ledger().set_timestamp(setup.start_timestamp);
         let vault_id = setup.create_default_vault();
-
 
         // Set time to just before end
         setup.env.ledger().set_timestamp(setup.end_timestamp - 1);
@@ -1046,7 +1044,6 @@ mod tests {
 
         usdc_asset.mint(&creator, &amount);
 
-
         let vault_id = client.create_vault(
             &usdc_addr,
             &creator,
@@ -1098,7 +1095,6 @@ mod tests {
             }
         }
         assert!(found_vault_created, "vault_created event must be emitted");
-
     }
 
     #[test]
@@ -1250,4 +1246,3 @@ mod tests {
         assert_eq!(usdc_client.balance(&contract_id), 0);
     }
 }
-
