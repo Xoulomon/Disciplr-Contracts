@@ -66,10 +66,24 @@ fn test_create_vault_assigns_sequential_ids() {
     let failure = Address::generate(&env);
 
     let id0 = client.create_vault(
-        &creator, &100i128, &0u64, &1u64, &zero_hash(&env), &None, &success, &failure,
+        &creator,
+        &100i128,
+        &0u64,
+        &1u64,
+        &zero_hash(&env),
+        &None,
+        &success,
+        &failure,
     );
     let id1 = client.create_vault(
-        &creator, &200i128, &0u64, &1u64, &zero_hash(&env), &None, &success, &failure,
+        &creator,
+        &200i128,
+        &0u64,
+        &1u64,
+        &zero_hash(&env),
+        &None,
+        &success,
+        &failure,
     );
 
     assert_eq!(id0, 0);
@@ -154,9 +168,9 @@ fn test_double_redirect_rejected() {
 // ── Cross-function idempotency (release then redirect, redirect then release) ──
 
 /// Release then redirect: redirect must be rejected because vault is Completed.
-    #[test]
-    #[should_panic]
-    fn test_release_then_redirect_rejected() {
+#[test]
+#[should_panic]
+fn test_release_then_redirect_rejected() {
     let (env, contract_id) = setup();
     let (client, vault_id) = create_default_vault(&env, &contract_id);
     client.release_funds(&vault_id);
@@ -172,7 +186,7 @@ fn test_redirect_then_release_rejected() {
     let (client, vault_id) = create_default_vault(&env, &contract_id);
     advance_past_deadline(&env, 2_000);
     client.redirect_funds(&vault_id); // succeeds
-    client.release_funds(&vault_id);  // must panic — already Failed
+    client.release_funds(&vault_id); // must panic — already Failed
 }
 
 // ── cancel_vault ──────────────────────────────────────────────────────
