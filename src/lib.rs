@@ -1192,7 +1192,10 @@ mod tests {
             &setup.failure_dest,
         );
 
-        setup.env.ledger().set_timestamp(setup.start_timestamp + 500);
+        setup
+            .env
+            .ledger()
+            .set_timestamp(setup.start_timestamp + 500);
 
         let result = client.validate_milestone(&vault_id);
         assert!(result);
