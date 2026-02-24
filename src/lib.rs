@@ -26,6 +26,7 @@ pub enum VaultStatus {
 }
 
 #[contracttype]
+#[derive(Clone)]
 pub struct ProductivityVault {
     pub creator: Address,
     pub amount: i128,
