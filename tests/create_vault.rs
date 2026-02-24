@@ -3,18 +3,21 @@
 extern crate std;
 
 use soroban_sdk::{
-    testutils::{Address as _, Ledger},    token::StellarAssetClient,    Address, BytesN, Env,
+    testutils::{Address as _, Ledger},
+    token::StellarAssetClient,
+    Address, BytesN, Env,
 };
 
 use disciplr_vault::{
-    DisciplrVault,
-    DisciplrVaultClient,
-    MIN_AMOUNT,
-    MAX_AMOUNT,
-    MAX_VAULT_DURATION,
+    DisciplrVault, DisciplrVaultClient, MAX_AMOUNT, MAX_VAULT_DURATION, MIN_AMOUNT,
 };
 
-fn setup() -> (Env, DisciplrVaultClient<'static>, Address, StellarAssetClient<'static>) {
+fn setup() -> (
+    Env,
+    DisciplrVaultClient<'static>,
+    Address,
+    StellarAssetClient<'static>,
+) {
     let env = Env::default();
     env.mock_all_auths();
 

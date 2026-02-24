@@ -49,7 +49,7 @@ impl DisciplrVault {
     ) -> u32 {
         creator.require_auth();
 
-         // Enforce amount bounds
+        // Enforce amount bounds
         if amount < MIN_AMOUNT {
             return Err(Error::InvalidAmount);
         }
@@ -59,7 +59,9 @@ impl DisciplrVault {
 
         // Reasonable start time (e.g. not too far in past/future)
         let current = env.ledger().timestamp();
-        if start_timestamp < current { return Err(Error::InvalidTimestamp); }
+        if start_timestamp < current {
+            return Err(Error::InvalidTimestamp);
+        }
 
         // Enforce duration bounds
         if end_timestamp <= start_timestamp {
