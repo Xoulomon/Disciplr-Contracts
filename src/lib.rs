@@ -146,12 +146,12 @@ impl DisciplrVault {
 mod test {
     use super::*;
     use soroban_sdk::{
-        contract, contractimpl, contracttype, token, String, Symbol,
+        contract, contractimpl, contracttype, token, String,
     };
     use soroban_sdk::testutils::Address as _;
 
     #[contracttype]
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[derive(Clone, Debug, Eq, PartialEq)]
     enum MockTokenKey {
         Balance(Address),
         Allowance(Address, Address),
@@ -163,7 +163,7 @@ mod test {
     #[contractimpl]
     impl MockToken {
         pub fn mint(env: Env, to: Address, amount: i128) {
-            let balance: i128 = env.storage().instance().get(&MockTokenKey::Balance(to)).unwrap_or(0);
+            let balance: i128 = env.storage().instance().get(&MockTokenKey::Balance(to.clone())).unwrap_or(0);
             env.storage().instance().set(&MockTokenKey::Balance(to), &(balance + amount));
         }
 
@@ -205,7 +205,7 @@ mod test {
             let allow: i128 = env
                 .storage()
                 .instance()
-                .get(&MockTokenKey::Allowance(from.clone(), spender))
+                .get(&MockTokenKey::Allowance(from.clone(), spender.clone()))
                 .unwrap_or(0);
             if allow < amount {
                 panic!("insufficient allowance");
@@ -224,7 +224,7 @@ mod test {
         pub fn burn(env: Env, from: Address, amount: i128) {
             from.require_auth();
             let balance: i128 =
-                env.storage().instance().get(&MockTokenKey::Balance(from)).unwrap_or(0);
+                env.storage().instance().get(&MockTokenKey::Balance(from.clone())).unwrap_or(0);
             env.storage().instance().set(&MockTokenKey::Balance(from), &(balance - amount));
         }
 
@@ -233,7 +233,7 @@ mod test {
             let allow: i128 = env
                 .storage()
                 .instance()
-                .get(&MockTokenKey::Allowance(from.clone(), spender))
+                .get(&MockTokenKey::Allowance(from.clone(), spender.clone()))
                 .unwrap_or(0);
             if allow < amount {
                 panic!("insufficient allowance");
@@ -242,7 +242,7 @@ mod test {
                 .instance()
                 .set(&MockTokenKey::Allowance(from.clone(), spender), &(allow - amount));
             let balance: i128 =
-                env.storage().instance().get(&MockTokenKey::Balance(from)).unwrap_or(0);
+                env.storage().instance().get(&MockTokenKey::Balance(from.clone())).unwrap_or(0);
             env.storage().instance().set(&MockTokenKey::Balance(from), &(balance - amount));
         }
 
@@ -322,7 +322,7 @@ mod test {
             "cancel_vault must return vault amount to creator"
         );
 
-        let state = vault_client.get_vault_state(vault_id);
+        let state = vault_client.get_vault_state(&vault_id);
         let vault = state.expect("vault should exist");
         assert_eq!(
             vault.status,
