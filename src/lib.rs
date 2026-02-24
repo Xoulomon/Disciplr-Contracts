@@ -35,11 +35,10 @@ pub enum DataKey {
 #[contract]
 pub struct DisciplrVault;
 
-#[allow(clippy::too_many_arguments)]
 #[contractimpl]
+#[allow(clippy::too_many_arguments)]
 impl DisciplrVault {
     /// Create a new productivity vault. Caller must have approved token transfer to this contract.
-    #[allow(clippy::too_many_arguments)]
     pub fn create_vault(
         env: Env,
         token: Address,
