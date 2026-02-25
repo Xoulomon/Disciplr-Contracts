@@ -22,6 +22,10 @@ This repo is a **basic version**: logic is stubbed and storage is not persisted.
 
 For detailed contract documentation, see [vesting.md](vesting.md).
 
+## Security
+
+The Disciplr Vault follows a transparent security model based on creator authorization and optional third-party verification. For a detailed analysis of the trust model, assumptions, and known limitations (including CEI pattern notes), please refer to the [Security and Trust Model](vesting.md#security-and-trust-model) in the documentation.
+
 ---
 
 # Contract Documentation

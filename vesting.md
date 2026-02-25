@@ -295,44 +295,32 @@ Emitted when a milestone is successfully validated.
 
 ---
 
-## Security Assumptions
+## Security and Trust Model
 
-### Authentication & Authorization
+This section outlines the security properties, trust assumptions, and known limitations of the Disciplr Vault contract to assist auditors and users.
 
-1. **Creator Authorization**: The vault creator must authorize transactions via `require_auth()`. This ensures only the creator can initiate vault creation or cancellation.
+### Trust Model
 
-2. **Verifier Role**: An optional verifier can be designated during vault creation. If set, only the verifier can validate milestones. If not set, anyone can validate (which may be useful for decentralized verification).
+1. **Absolute Verifier Power**: If a `verifier` is designated, they hold absolute power over the milestone validation process. The contract cannot verify off-chain project completion; it relies entirely on the `verifier`'s signature or authorization.
+2. **Creator Authority**: The `creator` is the only address authorized to `create_vault` or `cancel_vault`. They must authorize the initial USDC funding.
+3. **No Administrative Overrides**: There is no "admin" or "owner" role with the power to sweep funds or override the vault logic. Funds can only flow to the predefined `success_destination`, `failure_destination`, or back to the `creator` on cancellation.
 
-3. **Destination Addresses**: Once set, success and failure destinations cannot be modified. This prevents fund redirection attacks.
+### External Dependencies
 
-### Timing Constraints
+1. **USDC Token Contract**: The contract interacts with an external USDC token address (Stellar Asset Contract). The security of the vault depends on the integrity and availability of this external contract.
+2. **Ledger Reliability**: The contract relies on the Stellar network's ledger timestamp for all timing constraints (`start_timestamp`, `end_timestamp`).
 
-1. **Start Timestamp**: Vault funds are locked from `start_timestamp`. Before this time, the vault exists but is not active.
+### Assumptions
 
-2. **End Timestamp**: After `end_timestamp`:
-   - If milestone is validated → funds release to success destination
-   - If not validated → funds redirect to failure destination
+1. **Immutable Destinations**: The `success_destination` and `failure_destination` are fixed at vault creation and cannot be changed.
+2. **USDC Compliance**: It is assumed the provided `usdc_token` address follows the standard Soroban/Stellar token interface.
 
-3. **Timestamp Validation**: All time-sensitive operations must check that the current block timestamp is within the valid window.
+### Known Limitations & Security Notes
 
-### Token Handling
-
-1. **USDC Integration**: The contract expects USDC (or similar token) to be transferred to the contract before vault creation. This requires:
-   - Creator approves token transfer
-   - Contract pulls tokens from creator (via `transfer_from`)
-
-2. **Non-Custodial**: The contract holds tokens in escrow but never has withdrawal authority beyond the defined destination addresses.
-
-### Current Limitations (TODOs)
-
-The following security features are not yet implemented:
-
-- [ ] **Storage Persistence**: Vaults are not persisted between contract calls
-- [ ] **Token Transfer**: Actual USDC transfer logic is not implemented
-- [ ] **Timestamp Validation**: Methods don't validate timestamps
-- [ ] **Verifier Authorization**: No check that caller is the designated verifier
-- [ ] **Reentrancy Protection**: No guards against reentrancy attacks
-- [ ] **Access Control**: Basic auth only; no complex role-based access
+1. **Per-Call Token Address**: The `usdc_token` address is passed as an argument to release/redirect functions rather than being pinned to the vault data at creation. This introduces a risk where a malicious caller could potentially pass a different token address (though they would still need the contract to hold a balance of that token).
+2. **Checks-Effects-Interactions (CEI)**: In `release_funds`, `redirect_funds`, and `cancel_vault`, the USDC transfer is initiated *before* the internal status is updated to `Completed`, `Failed`, or `Cancelled`. While Soroban's atomicity safeguards against most reentrancy/partial-success risks, this is a deviation from the strict CEI pattern.
+3. **Lack of Emergency Stops**: There is currently no circuit breaker or emergency pause mechanism.
+4. **Precision**: All amounts are handled as `i128` in stroops (7 decimals for USDC); users must ensure they provide correct decimal-adjusted amounts.
 
 ### Recommendations for Production
 

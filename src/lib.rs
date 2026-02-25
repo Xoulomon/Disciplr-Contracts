@@ -104,8 +104,13 @@ impl DisciplrVault {
 
     /// Create a new productivity vault. Caller must have approved USDC transfer to this contract.
     ///
+    /// # Security Notes
+    /// - **Authorization**: This call requires explicit authorization from the `creator` address.
+    /// - **USDC Address Risk**: The `usdc_token` address is provided per-call and is not pinned to the vault.
+    ///   Integrators should ensure the correct token address is used.
+    ///
     /// # Validation Rules
-    /// - `amount` must be positive; otherwise returns `Error::InvalidAmount`.
+    /// - `amount` must be positive; otherwise panics with "amount must be positive".
     /// - `start_timestamp` must be strictly less than `end_timestamp`; otherwise returns `Error::InvalidTimestamps`.
     pub fn create_vault(
         env: Env,
@@ -175,9 +180,12 @@ impl DisciplrVault {
 
     /// Verifier (or authorized party) validates milestone completion.
     ///
-    /// **Optional verifier behavior:** If `verifier` is `Some(addr)`, only that address may call
-    /// this function. If `verifier` is `None`, only the creator may call it (no validation by
-    /// other parties). Rejects when current time >= end_timestamp (MilestoneExpired).
+    /// # Security Notes
+    /// - **Trust Model**: The contract relies entirely on the verifier (if set) or creator to 
+    ///   attest to off-chain milestone completion.
+    /// - **Authorization**: If `verifier` is `Some(addr)`, only that address may call this.
+    ///   If `verifier` is `None`, only the `creator` may call it.
+    /// - **Expiry**: Rejects when current time >= end_timestamp (MilestoneExpired).
     pub fn validate_milestone(env: Env, vault_id: u32) -> Result<bool, Error> {
         let vault_key = DataKey::Vault(vault_id);
         let mut vault: ProductivityVault = env
@@ -215,6 +223,11 @@ impl DisciplrVault {
     // -----------------------------------------------------------------------
 
     /// Release vault funds to `success_destination`.
+    ///
+    /// # Security Notes
+    /// - **Release Logic**: Allowed if milestone is validated OR if the deadline has passed.
+    /// - **CEI Violation**: Note that the token transfer occurs *before* the status is set to `Completed`.
+    ///   While Soroban is atomic, this deviates from the strict Checks-Effects-Interactions pattern.
     pub fn release_funds(env: Env, vault_id: u32, usdc_token: Address) -> Result<bool, Error> {
         let vault_key = DataKey::Vault(vault_id);
         let mut vault: ProductivityVault = env
@@ -258,6 +271,10 @@ impl DisciplrVault {
     // -----------------------------------------------------------------------
 
     /// Redirect funds to `failure_destination` (e.g. after deadline without validation).
+    ///
+    /// # Security Notes
+    /// - **Redirect Logic**: Only allowed after `end_timestamp` has passed without validation.
+    /// - **CEI Violation**: Token transfer occurs *before* status is set to `Failed`.
     pub fn redirect_funds(env: Env, vault_id: u32, usdc_token: Address) -> Result<bool, Error> {
         let vault_key = DataKey::Vault(vault_id);
         let mut vault: ProductivityVault = env
@@ -301,6 +318,10 @@ impl DisciplrVault {
     // -----------------------------------------------------------------------
 
     /// Cancel vault and return funds to creator.
+    ///
+    /// # Security Notes
+    /// - **Authorization**: Only the vault `creator` may call this.
+    /// - **CEI Violation**: Token transfer occurs *before* status is set to `Cancelled`.
     pub fn cancel_vault(env: Env, vault_id: u32, usdc_token: Address) -> Result<bool, Error> {
         let vault_key = DataKey::Vault(vault_id);
         let mut vault: ProductivityVault = env
