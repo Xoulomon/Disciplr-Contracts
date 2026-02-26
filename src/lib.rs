@@ -1141,6 +1141,58 @@ mod tests {
         assert_eq!(vault.verifier, None);
     }
 
+    /// When verifier is None, a non-creator caller cannot validate the milestone.
+    #[test]
+    #[should_panic]
+    fn test_validate_milestone_verifier_none_non_creator_fails() {
+        let env = Env::default();
+
+        // Deploy USDC mock token.
+        let usdc_admin = Address::generate(&env);
+        let usdc_token = env.register_stellar_asset_contract_v2(usdc_admin.clone());
+        let usdc_addr = usdc_token.address();
+        let usdc_asset = StellarAssetClient::new(&env, &usdc_addr);
+
+        // Actors.
+        let creator = Address::generate(&env);
+        let non_creator = Address::generate(&env);
+        let success_dest = Address::generate(&env);
+        let failure_dest = Address::generate(&env);
+
+        // Fund creator so create_vault succeeds.
+        usdc_asset.mint(&creator, &MIN_AMOUNT);
+
+        let start_timestamp: u64 = 100;
+        let end_timestamp: u64 = 1_000;
+        env.ledger().set_timestamp(start_timestamp);
+
+        // Authorize creator to create the vault.
+        creator.require_auth();
+
+        let milestone_hash = BytesN::from_array(&env, &[1u8; 32]);
+
+        // Create vault with verifier = None so only creator may validate.
+        let vault_id = DisciplrVault::create_vault(
+            env.clone(),
+            usdc_addr,
+            creator.clone(),
+            MIN_AMOUNT,
+            start_timestamp,
+            end_timestamp,
+            milestone_hash,
+            None,
+            success_dest,
+            failure_dest,
+        )
+        .unwrap();
+
+        // Attempt validation as non-creator before deadline – should panic on require_auth.
+        env.ledger().set_timestamp(start_timestamp + 1);
+        non_creator.require_auth();
+
+        let _ = DisciplrVault::validate_milestone(env, vault_id).unwrap();
+    }
+
     /// Issue #14: When verifier is None, release_funds after deadline (no validation) still works.
     #[test]
     fn test_release_funds_verifier_none_after_deadline() {
@@ -1157,6 +1209,28 @@ mod tests {
 
         let vault = client.get_vault_state(&vault_id).unwrap();
         assert_eq!(vault.status, VaultStatus::Completed);
+    }
+
+    /// When verifier is None, redirect_funds after deadline behaves the same as with a verifier.
+    #[test]
+    fn test_redirect_funds_verifier_none_after_deadline_without_validation() {
+        let setup = TestSetup::new();
+        let client = setup.client();
+
+        setup.env.ledger().set_timestamp(setup.start_timestamp);
+        let vault_id = setup.create_vault_no_verifier();
+
+        setup.env.ledger().set_timestamp(setup.end_timestamp + 1);
+
+        let usdc = setup.usdc_client();
+        let before = usdc.balance(&setup.failure_dest);
+
+        let result = client.redirect_funds(&vault_id, &setup.usdc_token);
+        assert!(result);
+        assert_eq!(usdc.balance(&setup.failure_dest) - before, setup.amount);
+
+        let vault = client.get_vault_state(&vault_id).unwrap();
+        assert_eq!(vault.status, VaultStatus::Failed);
     }
 
     #[test]
@@ -1354,6 +1428,34 @@ mod tests {
 
         setup.env.ledger().set_timestamp(setup.end_timestamp + 1);
 
+        let usdc = setup.usdc_client();
+        let before = usdc.balance(&setup.failure_dest);
+
+        let result = client.redirect_funds(&vault_id, &setup.usdc_token);
+        assert!(result);
+        assert_eq!(usdc.balance(&setup.failure_dest) - before, setup.amount);
+
+        let vault = client.get_vault_state(&vault_id).unwrap();
+        assert_eq!(vault.status, VaultStatus::Failed);
+    }
+
+    /// redirect_funds succeeds exactly at end_timestamp and fails before end_timestamp.
+    #[test]
+    fn test_redirect_funds_respects_end_timestamp_boundary() {
+        let setup = TestSetup::new();
+        let client = setup.client();
+
+        setup.env.ledger().set_timestamp(setup.start_timestamp);
+        let vault_id = setup.create_default_vault();
+
+        // Before end_timestamp: should be rejected.
+        setup.env.ledger().set_timestamp(setup.end_timestamp - 1);
+        assert!(client
+            .try_redirect_funds(&vault_id, &setup.usdc_token)
+            .is_err());
+
+        // Exactly at end_timestamp: should succeed and transfer funds.
+        setup.env.ledger().set_timestamp(setup.end_timestamp);
         let usdc = setup.usdc_client();
         let before = usdc.balance(&setup.failure_dest);
 
@@ -1627,6 +1729,102 @@ mod tests {
             }
         }
         assert!(found_vault_created, "vault_created event must be emitted");
+    }
+
+    #[test]
+    fn test_release_funds_emits_event_with_amount() {
+        let setup = TestSetup::new();
+        let client = setup.client();
+
+        setup.env.ledger().set_timestamp(setup.start_timestamp);
+        let vault_id = setup.create_default_vault();
+
+        // Validate then release funds.
+        client.validate_milestone(&vault_id);
+        let _ = client.release_funds(&vault_id, &setup.usdc_token);
+
+        let all_events = setup.env.events().all();
+        let mut found = false;
+
+        for (emitting_contract, topics, data) in all_events {
+            if emitting_contract == setup.contract_id {
+                let event_name: Symbol = topics.get(0).unwrap().into_val(&setup.env);
+                if event_name == Symbol::new(&setup.env, "funds_released") {
+                    let event_vault_id: u32 = topics.get(1).unwrap().into_val(&setup.env);
+                    assert_eq!(event_vault_id, vault_id);
+
+                    let amount: i128 = data.into_val(&setup.env);
+                    assert_eq!(amount, setup.amount);
+                    found = true;
+                }
+            }
+        }
+
+        assert!(
+            found,
+            "funds_released event with correct payload must be emitted"
+        );
+    }
+
+    #[test]
+    fn test_redirect_funds_emits_event_with_amount() {
+        let setup = TestSetup::new();
+        let client = setup.client();
+
+        setup.env.ledger().set_timestamp(setup.start_timestamp);
+        let vault_id = setup.create_default_vault();
+
+        setup.env.ledger().set_timestamp(setup.end_timestamp + 1);
+        let _ = client.redirect_funds(&vault_id, &setup.usdc_token);
+
+        let all_events = setup.env.events().all();
+        let mut found = false;
+
+        for (emitting_contract, topics, data) in all_events {
+            if emitting_contract == setup.contract_id {
+                let event_name: Symbol = topics.get(0).unwrap().into_val(&setup.env);
+                if event_name == Symbol::new(&setup.env, "funds_redirected") {
+                    let event_vault_id: u32 = topics.get(1).unwrap().into_val(&setup.env);
+                    assert_eq!(event_vault_id, vault_id);
+
+                    let amount: i128 = data.into_val(&setup.env);
+                    assert_eq!(amount, setup.amount);
+                    found = true;
+                }
+            }
+        }
+
+        assert!(
+            found,
+            "funds_redirected event with correct payload must be emitted"
+        );
+    }
+
+    #[test]
+    fn test_cancel_vault_emits_event() {
+        let setup = TestSetup::new();
+        let client = setup.client();
+
+        setup.env.ledger().set_timestamp(setup.start_timestamp);
+        let vault_id = setup.create_default_vault();
+
+        let _ = client.cancel_vault(&vault_id, &setup.usdc_token);
+
+        let all_events = setup.env.events().all();
+        let mut found = false;
+
+        for (emitting_contract, topics, _) in all_events {
+            if emitting_contract == setup.contract_id {
+                let event_name: Symbol = topics.get(0).unwrap().into_val(&setup.env);
+                if event_name == Symbol::new(&setup.env, "vault_cancelled") {
+                    let event_vault_id: u32 = topics.get(1).unwrap().into_val(&setup.env);
+                    assert_eq!(event_vault_id, vault_id);
+                    found = true;
+                }
+            }
+        }
+
+        assert!(found, "vault_cancelled event must be emitted");
     }
 
     #[test]
