@@ -23,6 +23,8 @@
 #![allow(clippy::too_many_arguments)]
 
 use soroban_sdk::{
+    contract, contractimpl, contracttype, Address, BytesN, Env, Symbol,
+    symbol_short,
     contract, contracterror, contractimpl, contracttype, token, Address, BytesN, Env, Symbol,
 };
 
@@ -170,6 +172,9 @@ pub struct DisciplrVault;
 
 #[contractimpl]
 impl DisciplrVault {
+    const NEXT_VAULT_ID_KEY: Symbol = symbol_short!("vault_id");
+
+    /// Create a new productivity vault. Caller must have approved USDC transfer to this contract.
     /// Create a new productivity vault. Transfers USDC from creator to contract.
     ///
     /// # Security Notes
@@ -242,6 +247,10 @@ impl DisciplrVault {
     ) -> Result<u32, Error> {
         creator.require_auth();
 
+        // Retrieve the next vault ID from storage, default to 0 if not set
+        let next_vault_id: u32 = env.storage().persistent().get(&Self::NEXT_VAULT_ID_KEY).unwrap_or(0);
+
+        // Create the vault metadata
         if amount <= 0 {
             return Err(Error::InvalidAmount);
         }
@@ -299,6 +308,19 @@ impl DisciplrVault {
             milestone_validated: false,
         };
 
+        // Persist the vault metadata (using the vault ID as the key)
+        env.storage().persistent().set(&next_vault_id, &vault);
+
+        // Increment and persist the next vault ID
+        env.storage().persistent().set(&Self::NEXT_VAULT_ID_KEY, &(next_vault_id + 1));
+
+        // Publish an event for the created vault
+        env.events().publish(
+            (Symbol::new(&env, "vault_created"), next_vault_id),
+            vault,
+        );
+
+        next_vault_id
         env.storage()
             .instance()
             .set(&DataKey::Vault(vault_id), &vault);
