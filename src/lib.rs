@@ -54,11 +54,6 @@ pub enum Error {
     InvalidAmount = 7,
     /// start_timestamp must be strictly less than end_timestamp.
     InvalidTimestamps = 8,
-}
-
-// ---------------------------------------------------------------------------
-// Data types
-// ---------------------------------------------------------------------------
     /// Vault duration (end − start) exceeds MAX_VAULT_DURATION.
     DurationTooLong = 9,
 }
@@ -99,11 +94,7 @@ pub const MAX_VAULT_DURATION: u64 = 365 * 24 * 60 * 60; // 1 year in seconds
 pub const MIN_AMOUNT: i128 = 10_000_000; // 1 USDC with 7 decimals
 pub const MAX_AMOUNT: i128 = 10_000_000_000_000; // 10 million USDC with 7 decimals
 
-#[contracttype]
-pub enum DataKey {
-    VaultCount,
-    Vault(u32),
-}
+// Storage keys defined below in the DataKey enum.
 
 /// Core data structure representing a productivity vault with time-locked funds.
 ///
@@ -169,27 +160,6 @@ pub enum DataKey {
 // ---------------------------------------------------------------------------
 // Contract
 // ---------------------------------------------------------------------------
-
-    /// Address that created and funded the vault
-    pub creator: Address,
-    /// Amount of USDC locked (in stroops)
-    pub amount: i128,
-    /// Unix timestamp when vault becomes active
-    pub start_timestamp: u64,
-    /// Unix timestamp deadline for milestone completion
-    pub end_timestamp: u64,
-    /// SHA-256 hash of milestone criteria
-    pub milestone_hash: BytesN<32>,
-    /// Optional address authorized to validate milestone
-    pub verifier: Option<Address>,
-    /// Address to receive funds on success
-    pub success_destination: Address,
-    /// Address to receive funds on failure
-    pub failure_destination: Address,
-    /// Current vault status
-    pub status: VaultStatus,
-    pub milestone_validated: bool,
-}
 
 /// Main contract for managing productivity vaults with time-locked USDC.
 ///
@@ -566,21 +536,7 @@ mod tests {
     // Helpers
     // -----------------------------------------------------------------------
 
-    struct TestSetup {
-        env: Env,
-        contract_id: Address,
-        usdc_token: Address,
-        creator: Address,
-        verifier: Address,
-        success_dest: Address,
-        failure_dest: Address,
-        amount: i128,
-        start_timestamp: u64,
-        end_timestamp: u64,
-        vault.milestone_validated = true;
-        env.storage()
-            .instance()
-            .set(&DataKey::Vault(vault_id), &vault);
+    struct TestSetup;
 
     /// Validates milestone completion and releases funds to the success destination.
     ///
@@ -740,6 +696,7 @@ mod tests {
     /// Return current vault state for a given vault id.
     pub fn get_vault_state(env: Env, vault_id: u32) -> Option<ProductivityVault> {
         env.storage().instance().get(&DataKey::Vault(vault_id))
+    }
     /// Releases vault funds to the success destination.
     ///
     /// This function transfers the locked USDC to the success destination address
